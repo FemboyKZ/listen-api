@@ -9,12 +9,12 @@ const key = process.env.KEY;
 const port = process.env.PORT || 5000;
 
 if (!key) {
-  throw new Error("Missing key");
+  return console.error("Missing key");
 }
 
 app.post("/command", (req, res) => {
-  const authHeader = req.headers["authorization"];
-  if (authHeader !== key) {
+  const auth = req.headers["authorization"];
+  if (auth !== key) {
     return res.status(401).send("Unauthorized");
   }
 
