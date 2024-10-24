@@ -56,8 +56,11 @@ app.post("/command", (req, res) => {
       exitCode: code,
     };
 
-    if (statusOut.includes("OK")) {
-      return res.status(200).send(response);
+    if (
+      statusOut.includes("OK") ||
+      statusOut.toUpperCase().includes("SUCCESS")
+    ) {
+      return res.status(200); //.send(response);
     } else if (statusOut.includes("FAIL")) {
       return res.status(500).send(response);
     }
