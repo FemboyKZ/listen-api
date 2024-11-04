@@ -20,7 +20,6 @@ const logger = winston.createLogger({
 
 const key = process.env.KEY;
 const port = process.env.PORT || 5000;
-const allowedIPs = process.env.ALLOWED_IPS.split(",");
 
 if (!key) {
   logger.error("Missing key from .env");
@@ -28,24 +27,15 @@ if (!key) {
 }
 
 app.post("/command", (req, res) => {
-  logger.info("Command received:", req.body);
+  logger.info("Command received:" + req.body);
   const command = req.body.command;
   const game = req.body.game;
   const user = req.body.user;
 
   const authKey = req.headers["Authorization"];
 
-  const ip = req.ip;
-
-  if (!allowedIPs.includes(ip)) {
-    logger.error("Unauthorized IP");
-    res.status(401).send({ message: "Unauthorized" });
-    return;
-  }
-  logger.info("IP is valid");
-
   if (authKey !== key) {
-    logger.error("Invalid authorization key");
+    logger.error("Invalid authorization key: " + authKey);
     res.status(401).send({ message: "Unauthorized" });
     return;
   }
@@ -58,25 +48,25 @@ app.post("/command", (req, res) => {
   }
 
   if (!["start", "stop", "restart", "gameinfo.sh"].includes(command)) {
-    logger.error("Invalid command");
+    logger.error("Invalid command: " + command);
     res.status(400).send({ message: "Invalid command" });
     return;
   }
 
   if (!["csgo", "cscl", "cs2"].includes(game)) {
-    logger.error("Invalid game");
+    logger.error("Invalid game: " + game);
     res.status(400).send({ message: "Invalid game" });
     return;
   }
 
   if (!["fkz-1", "fkz-2", "fkz-3", "fkz-4", "fkz-5"].includes(user)) {
-    logger.error("Invalid user");
+    logger.error("Invalid user: " + user);
     res.status(400).send({ message: "Invalid user" });
     return;
   }
 
   if (command === "gameinfo.sh" && game !== "cs2") {
-    logger.error("Invalid game for command");
+    logger.error("Invalid game for command: " + game + " - " + command);
     res.status(400).send({ message: "Invalid game for command" });
     return;
   }
