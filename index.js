@@ -32,7 +32,7 @@ app.post("/command", (req, res) => {
   const game = req.body.game;
   const user = req.body.user;
 
-  const authKey = req.headers["Authorization"];
+  const authKey = req.headers["authorization"];
 
   if (authKey !== key) {
     logger.error("Invalid authorization key: " + authKey);
