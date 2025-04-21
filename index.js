@@ -1,126 +1,115 @@
 require("dotenv").config();
-
 const child = require("child_process");
-
 const express = require("express");
-const app = express();
-app.use(express.json());
-
 const winston = require("winston");
 
+const VALID_COMMANDS = new Set(["start", "stop", "restart"]);
+const VALID_GAMES = new Set(["csgo", "cscl", "cs2"]);
+const VALID_USERS = new Set(["fkz-1", "fkz-2", "fkz-3", "fkz-4", "fkz-5"]);
+const CSCL_EXCEPTION = new Set(["cscl"]);
+
+const ENV_KEY = process.env.KEY;
+const PORT = process.env.PORT || 5000;
+
+if (!ENV_KEY) {
+  console.error("FATAL: Missing KEY in environment");
+  process.exit(1);
+}
+
 const logger = winston.createLogger({
-  level: "info",
-  format: winston.format.json(),
+  level: process.env.NODE_ENV === "production" ? "info" : "debug",
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
   transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: "error.log", level: "error" }),
+    new winston.transports.Console({
+      format: winston.format.simple(),
+    }),
     new winston.transports.File({ filename: "combined.log" }),
   ],
 });
 
-const key = process.env.KEY;
-const port = process.env.PORT || 5000;
+const app = express();
+app.use(express.json());
 
-if (!key) {
-  logger.error("Missing key from .env");
-  return console.error("Missing key from .env");
-}
-
-app.post("/command", (req, res) => {
-  logger.info("Command received:" + req.body);
-  const command = req.body.command;
-  const game = req.body.game;
-  const user = req.body.user;
-
-  const authKey = req.headers["authorization"];
-
-  if (authKey !== key) {
-    logger.error("Invalid authorization key: " + authKey);
-    res.status(401).send({ message: "Unauthorized" });
-    return;
+const authorize = (req, res, next) => {
+  const authKey = req.headers.authorization;
+  if (authKey !== ENV_KEY) {
+    logger.warn(`Unauthorized attempt with key: ${authKey}`);
+    return res.status(401).json({ error: "Unauthorized" });
   }
-  logger.info("Authorization key is valid");
+  next();
+};
 
-  if (!command || !game || !user) {
-    logger.error("Missing command, game, or user");
-    res.status(400).send({ message: "Missing command, game, or user" });
-    return;
+const validateRequest = (req, res, next) => {
+  const { command, game, user } = req.body;
+
+  const errors = [];
+  if (!VALID_COMMANDS.has(command)) errors.push("Invalid command");
+  if (!VALID_GAMES.has(game)) errors.push("Invalid game");
+  if (!VALID_USERS.has(user)) errors.push("Invalid user");
+
+  if (errors.length > 0) {
+    logger.warn(`Invalid request: ${errors.join(", ")}`);
+    return res.status(400).json({ errors });
   }
 
-  if (!["start", "stop", "restart", "gameinfo.sh"].includes(command)) {
-    logger.error("Invalid command: " + command);
-    res.status(400).send({ message: "Invalid command" });
-    return;
+  next();
+};
+
+const executeCommand = (command, game, user) => {
+  const basePath = `/home/${game}-${user}`;
+  let commandString;
+
+  if (command === "gameinfo.sh") {
+    commandString = `${basePath}/${command}`;
+  } else if (CSCL_EXCEPTION.has(game)) {
+    commandString = `${basePath}/csgoserver ${command}`;
+  } else {
+    commandString = `${basePath}/${game}server ${command}`;
   }
 
-  if (!["csgo", "cscl", "cs2"].includes(game)) {
-    logger.error("Invalid game: " + game);
-    res.status(400).send({ message: "Invalid game" });
-    return;
-  }
+  return child.execSync(`sudo -iu ${game}-${user} ${commandString}`, {
+    encoding: "utf-8",
+    stdio: "pipe",
+  });
+};
 
-  if (!["fkz-1", "fkz-2", "fkz-3", "fkz-4", "fkz-5"].includes(user)) {
-    logger.error("Invalid user: " + user);
-    res.status(400).send({ message: "Invalid user" });
-    return;
-  }
+app.post("/command", authorize, validateRequest, (req, res) => {
+  const { command, game, user } = req.body;
 
-  if (command === "gameinfo.sh" && game !== "cs2") {
-    logger.error("Invalid game for command: " + game + " - " + command);
-    res.status(400).send({ message: "Invalid game for command" });
-    return;
-  }
-
-  logger.info("Command is Valid, Executing command");
+  logger.info("Executing command", { command, game, user });
 
   try {
-    if (command === "gameinfo.sh") {
-      const result = child.execSync(
-        `sudo -iu ${game}-${user} /home/${game}-${user}/${command}`
-      );
-      if (result) {
-        logger.info("Command executed successfully");
-        res.status(200).send({ message: "Command executed successfully" });
-      } else {
-        logger.error("Error occurred while executing command");
-        res.status(500).send({ message: "Internal Server Error" });
-      }
-    }
-    // this is hacky, but it works
-    if (game === "cscl") {
-      const result = child.execSync(
-        `sudo -iu ${game}-${user} /home/${game}-${user}/csgoserver ${command}`
-      );
-      if (result) {
-        logger.info("Command executed successfully");
-        res.status(200).send({ message: "Command executed successfully" });
-      } else {
-        logger.error("Error occurred while executing command");
-        res.status(500).send({ message: "Internal Server Error" });
-      }
-    } else {
-      const result = child.execSync(
-        `sudo -iu ${game}-${user} /home/${game}-${user}/${game}server ${command}`
-      );
-      if (result) {
-        logger.info("Command executed successfully");
-        res.status(200).send({ message: "Command executed successfully" });
-      } else {
-        logger.error("Error occurred while executing command");
-        res.status(500).send({ message: "Internal Server Error" });
-      }
-    }
+    const result = executeCommand(command, game, user);
+    logger.info("Command executed successfully", { command, game, user });
+    res.json({
+      status: "success",
+      command: `${game}-${user}: ${command}`,
+      output: result.trim(),
+    });
   } catch (error) {
-    logger.error("Error occurred while executing command:", error);
-    res.status(500).send({ message: "Internal Server Error" });
+    logger.error("Command execution failed", {
+      error: error.message,
+      stderr: error.stderr?.trim(),
+      stdout: error.stdout?.trim(),
+    });
+    res.status(500).json({
+      error: "Command execution failed",
+      details: error.stderr?.trim() || error.message,
+    });
   }
 });
 
 app.use((err, req, res, next) => {
-  logger.error("Error occurred:", err);
-  res.status(500).send({ message: "Internal Server Error" });
+  logger.error("Unexpected error", {
+    error: err.message,
+    stack: err.stack,
+  });
+  res.status(500).json({ error: "Internal server error" });
 });
 
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+app.listen(PORT, () => {
+  logger.info(`Server started on port ${PORT}`);
 });
