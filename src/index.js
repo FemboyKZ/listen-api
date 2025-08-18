@@ -1,6 +1,6 @@
 require("dotenv").config();
 const express = require("express");
-const logger = require('./logger');
+const logger = require("./logger");
 
 const ENV_KEY = process.env.KEY;
 const PORT = process.env.PORT || 5000;
@@ -12,9 +12,8 @@ if (!ENV_KEY) {
 
 const app = express();
 app.use(express.json());
-const commandController = require('./commands/bot-commands.js');
-app.use('/api', commandController);
-
+const commandController = require("./commands/bot-commands.js");
+app.use("/api", commandController);
 
 app.use((err, req, res, next) => {
   logger.error("Unexpected error", {
