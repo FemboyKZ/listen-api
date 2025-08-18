@@ -9,7 +9,7 @@ const VALID_USERS = new Set(["fkz-1", "fkz-2", "fkz-3", "fkz-4", "fkz-5"]);
 const CSCL_EXCEPTION = new Set(["cscl"]);
 
 const logger = require("../logger");
-const authorize = require("../auth");
+const authorize = require("../middleware/auth");
 
 const validateRequest = (req, res, next) => {
   const { command, game, user } = req.body;
