@@ -1,5 +1,6 @@
-const jwt = require("jsonwebtoken");
-require("dotenv").config();
+import jwt from"jsonwebtoken";
+import dotenv from "dotenv";
+dotenv.config();
 
 const ENV_KEY = process.env.KEY;
 
@@ -19,4 +20,4 @@ const authorize = (req, res, next) => {
   }
 };
 
-module.exports = authorize;
+export default authorize;

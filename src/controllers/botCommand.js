@@ -1,5 +1,5 @@
-const child = require("child_process");
-const express = require("express");
+import child from "child_process";
+import express from "express";
 const router = express.Router();
 router.use(express.json());
 
@@ -8,8 +8,8 @@ const VALID_GAMES = new Set(["csgo", "cscl", "cs2"]);
 const VALID_USERS = new Set(["fkz-1", "fkz-2", "fkz-3", "fkz-4", "fkz-5"]);
 const CSCL_EXCEPTION = new Set(["cscl"]);
 
-const logger = require("../logger");
-const authorize = require("../middleware/auth");
+import logger from "../logger.js";
+import authorize from "../middleware/auth.js";
 
 const validateRequest = (req, res, next) => {
   const { command, game, user } = req.body;
@@ -71,4 +71,4 @@ router.post("/command", authorize, validateRequest, (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
