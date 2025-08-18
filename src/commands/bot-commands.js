@@ -1,46 +1,15 @@
-require("dotenv").config();
 const child = require("child_process");
-const express = require("express");
-const winston = require("winston");
+const express = require('express');
+const router = express.Router();
+router.use(express.json());
 
 const VALID_COMMANDS = new Set(["start", "stop", "restart"]);
 const VALID_GAMES = new Set(["csgo", "cscl", "cs2"]);
 const VALID_USERS = new Set(["fkz-1", "fkz-2", "fkz-3", "fkz-4", "fkz-5"]);
 const CSCL_EXCEPTION = new Set(["cscl"]);
 
-const ENV_KEY = process.env.KEY;
-const PORT = process.env.PORT || 5000;
-
-if (!ENV_KEY) {
-  console.error("FATAL: Missing KEY in environment");
-  process.exit(1);
-}
-
-const logger = winston.createLogger({
-  level: process.env.NODE_ENV === "production" ? "info" : "debug",
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console({
-      format: winston.format.simple(),
-    }),
-    new winston.transports.File({ filename: "combined.log" }),
-  ],
-});
-
-const app = express();
-app.use(express.json());
-
-const authorize = (req, res, next) => {
-  const authKey = req.headers.authorization;
-  if (authKey !== ENV_KEY) {
-    logger.warn(`Unauthorized attempt with key: ${authKey}`);
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  next();
-};
+const logger = require('../logger');
+const authorize = require('../auth');
 
 const validateRequest = (req, res, next) => {
   const { command, game, user } = req.body;
@@ -76,7 +45,7 @@ const executeCommand = (command, game, user) => {
   });
 };
 
-app.post("/command", authorize, validateRequest, (req, res) => {
+router.post("/command", authorize, validateRequest, (req, res) => {
   const { command, game, user } = req.body;
 
   logger.info("Executing command", { command, game, user });
@@ -102,14 +71,4 @@ app.post("/command", authorize, validateRequest, (req, res) => {
   }
 });
 
-app.use((err, req, res, next) => {
-  logger.error("Unexpected error", {
-    error: err.message,
-    stack: err.stack,
-  });
-  res.status(500).json({ error: "Internal server error" });
-});
-
-app.listen(PORT, () => {
-  logger.info(`Server started on port ${PORT}`);
-});
+module.exports = router;
